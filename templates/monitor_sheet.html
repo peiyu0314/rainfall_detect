@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水閘門關閉紀錄</title>
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <style>
+        .form-section {
+            margin-bottom: 20px;
+        }
+        .form-group {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+        .form-group label {
+            flex: 0 0 100%;
+            margin-bottom: 5px;
+        }
+        .form-group input {
+            flex: 0 0 100%;
+            max-width: 300px;
+            margin-right: 10px;
+            margin-bottom: 5px;
+        }
+        .form-group input:last-child {
+            margin-right: 0;
+        }
+        @media (min-width: 576px) {
+            .form-group {
+                flex-wrap: nowrap;
+            }
+            .form-group label {
+                flex: 0 0 300px;
+                margin-right: 20px;
+            }
+            .form-group input {
+                margin-bottom: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Bootstrap 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/monitor_table">新竹縣即時降雨資料</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/select_station">串接測站</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/notify_condition">雨量條件</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/monitor_sheet">閘門表單</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/valve_table">上水閘門開度資料</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+
+
+    <div class="container">
+        <form id="registerForm">
+            {% csrf_token %}
+            <br>
+            <h2 class="form-section">水閘門關閉紀錄</h2>
+            <fieldset class="form-section">
+                <legend>閘門關閉時間</legend>
+                <div class="form-group">
+                    <label for="close_date">閘門關閉日期:</label>
+                    <input type="date" id="close_date" name="close_date" required>
+                </div>
+                <div class="form-group">
+                    <label for="close_time">閘門關閉時間:</label>
+                    <input type="time" id="close_time" name="close_time" required>
+                </div>
+            </fieldset>
+            
+            <fieldset class="form-section">
+                <legend>閘門關閉前</legend>
+                <div class="form-group">
+                    <label for="open_size">閘門關閉前開度:</label>
+                    <input type="text" id="open_size" name="open_size" required>
+                </div>
+                <div class="form-group">
+                    <label for="open_flow">閘門關閉前瞬間流量:</label>
+                    <input type="text" id="open_flow" name="open_flow" required>
+                </div>
+            </fieldset>
+            
+            <fieldset class="form-section">
+                <legend>閘門關閉後</legend>
+                <div class="form-group">
+                    <label for="close_size">閘門關閉後開度:</label>
+                    <input type="text" id="close_size" name="close_size" required>
+                </div>
+                <div class="form-group">
+                    <label for="close_flow">閘門關閉後瞬間流量:</label>
+                    <input type="text" id="close_flow" name="close_flow" required>
+                </div>
+            </fieldset>
+
+            <button type="button" class="btn btn-primary" onclick="monitor_sheet_insert()">確定儲存</button>
+        </form>
+    </div>
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/water_monitor.js' %}"></script>
+</body>
+</html>

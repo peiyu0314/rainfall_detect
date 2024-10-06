@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>新竹縣即時降雨資料</title>
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <style>
+        .container {
+            margin-top: 20px;
+        }
+        .table thead th, .table tbody td {
+            text-align: center;
+        }
+        .data-time {
+            text-align: right;
+            margin-bottom: 10px;
+            font-weight: bold;
+            margin-right: 20px;
+        }
+        .action-buttons {
+            margin-bottom: 20px;
+        }
+        .card {
+            margin-bottom: 20px;
+        }
+        /* 缩小表格的水平空隙 */
+        .table {
+            table-layout: fixed;
+        }
+    </style>
+</head>
+<body>
+    <!-- Bootstrap 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/monitor_table">新竹縣即時降雨資料</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/select_station">串接測站</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/notify_condition">雨量條件</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/monitor_sheet">閘門表單</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/valve_table">上水閘門開度資料</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    
+    <div class="container">
+        <br>
+        <h1 class="text-center">上水閘門開度資料</h1>
+        <br>
+        <br>
+        <table class="table table-striped table-bordered">
+            <thead>
+                <tr>
+                    <th>閘門關閉時間</th>
+                    <th>閘門關閉前開度</th>
+                    <th>閘門關閉前瞬時流量</th>
+                    <th>閘門關閉後開度</th>
+                    <th>閘門關閉後瞬時流量</th>
+                    <th>時間戳記</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for entry in valve_data %}
+                <tr>
+                    <td>{{ entry.valve_close_time }}</td>
+                    <td>{{ entry.before_size }}</td>
+                    <td>{{ entry.before_flow }}</td>
+                    <td>{{ entry.after_size }}</td>
+                    <td>{{ entry.after_flow }}</td>
+                    <td>{{ entry.current_time }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/water_monitor.js' %}"></script>
+</body>
+</html>

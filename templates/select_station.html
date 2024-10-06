@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html>
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>選擇雨量通知測站</title>
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <style>
+        .container {
+            margin-top: 20px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .selected-stations {
+            margin-top: 20px;
+        }
+        .selected-station {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+        }
+        .action-buttons {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Bootstrap 导航栏 -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/monitor_table">新竹縣即時降雨資料</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/select_station">串接測站</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/notify_condition">雨量條件</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/monitor_sheet">閘門表單</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/valve_table">上水閘門開度資料</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <br>
+        <h1 class="text-center">選擇串接測站</h1>
+        <br>
+        <form id="stationForm">
+            {% csrf_token %}
+            <div class="form-group">
+                <h4 for="stationSelect">請選擇測站:</h4>
+                <br>
+                <select id="stationSelect" name="station" class="form-control">
+                    <option value="竹東">竹東</option>
+                    <option value="橫山">橫山</option>
+                    <option value="內灣國小">內灣國小</option>
+                    <option value="國一S088K">國一S088K</option>
+                    <option value="新竹">新竹</option>
+                    <option value="飛鳳山">飛鳳山</option>
+                    <option value="國一S098K">國一S098K</option>
+                    <option value="國一S105K">國一S105K</option>
+                    <option value="新城國小">新城國小</option>
+                    <option value="寶山">寶山</option>
+                    <option value="雪霸">雪霸</option>
+                    <option value="花園派出所">花園派出所</option>
+                    <option value="清泉">清泉</option>
+                    <option value="桃改五峰分場">桃改五峰分場</option>
+                    <option value="白蘭">白蘭</option>
+                    <option value="太閣南">太閣南</option>
+                    <option value="太閣南">太閣南</option>
+                    <option value="五峰國小">五峰國小</option>
+                    <option value="外坪五指">外坪五指</option>
+                    <option value="國三N077K">國三N077K</option>
+                    <option value="國三N085K">國三N085K</option>
+                    <option value="錦山國小">錦山國小</option>
+                    <option value="關西(3)">關西(3)</option>
+                    <option value="關西">關西</option>
+                    <option value="新埔">新埔</option>
+                    <option value="新埔(1)">新埔(1)</option>
+                    <option value="打鐵坑">打鐵坑</option>
+                    <option value="桃改新埔分場">桃改新埔分場</option>
+                    <option value="鳥嘴山">鳥嘴山</option>
+                    <option value="鳥嘴山">鳥嘴山</option>
+                    <option value="梅花">梅花</option>
+                    <option value="梅花">梅花</option>
+                    <option value="白石">白石</option>
+                    <option value="秀巒國小">秀巒國小</option>
+                    <option value="西丘斯山">西丘斯山</option>
+                    <option value="尖石國小">尖石國小</option>
+                    <option value="錦屏國小">錦屏國小</option>
+                    <option value="鎮西堡">鎮西堡</option>
+                    <option value="玉峰">玉峰</option>
+                    <option value="田埔分校">田埔分校</option>
+                    <option value="峨眉">峨眉</option>
+                    <option value="國一N077K">國一N077K</option>
+                    <option value="國一S082K">國一S082K</option>
+                    <option value="湖口">湖口</option>
+                    <option value="西濱N066K">西濱N066K</option>
+                    <option value="外湖">外湖</option>
+                    <option value="新豐">新豐</option>   
+                </select>
+            </div>
+            <button type="button" class="btn btn-primary" onclick="addStation()">添加測站</button>
+
+
+            <div class="selected-stations">
+                <br>
+                <h4>已選擇測站:</h4>
+                <br>
+                <div id="stationList">
+                    {% for station in stations_to_check %}
+                    <div class="selected-station" data-station="{{ station }}">
+                        <span >{{ station }}</span>
+                        <button type="button" class="btn btn-danger btn-sm" onclick="removeStation(this)">移除</button>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            <br>
+            <div class="action-buttons">
+                <button type="submit" class="btn btn-success" onclick="submitStations()">提交</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/water_monitor.js' %}"></script>
+</body>
+</html>

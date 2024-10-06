@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    {% load static %}
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>變更LINE群組通知</title>
+    <link href="{% static 'css/bootstrap.min.css' %}" rel="stylesheet">
+    <style>
+        .container {
+            margin-top: 50px;
+            max-width: 600px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        .action-buttons .btn {
+            margin: 0 10px;
+            width: 120px;
+        }
+    </style>
+</head>
+<body>
+     <!-- Bootstrap 导航栏 -->
+     <nav class="navbar navbar-expand-lg navbar-light bg-light">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/monitor_table">新竹縣即時降雨資料</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav">
+                    <li class="nav-item">
+                        <a class="nav-link" href="/select_station">串接測站</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/notify_condition">雨量條件</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/monitor_sheet">閘門表單</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="/valve_table">上水閘門開度資料</a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+
+    <div class="container">
+        <h1 class="text-center">變更LINE群組通知</h1>
+        <br>
+        <form id="stationForm">
+            {% csrf_token %}
+            <div class="form-group">
+                <h5>當前群組APIkey:</h5>
+                <label> {{ APIkey }}</label>
+            </div>
+            <div>
+                <label for="rainfallAmount">請輸入新群組的APIkey:</label>
+                <input type="text" class="form-control" id="APIkey" placeholder="APIkey" required>
+            </div>
+            <div class="action-buttons">
+                <button id="submitBtn" type="submit" class="btn btn-success" onclick="submitAPIkey()">提交</button>
+            </div>
+        </form>
+    </div>
+
+    <script src="{% static 'js/jquery.min.js' %}"></script>
+    <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+    <script src="{% static 'js/water_monitor.js' %}"></script>
+</body>
+</html>
