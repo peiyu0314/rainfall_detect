@@ -14,6 +14,7 @@ import traceback
 import os
 from django.conf import settings
 from datetime import datetime, timedelta
+import json
 
 # cd /Users/dengpeiyu/Desktop/上水汙水處理/rainfall_dect
 # python manage.py runserver
@@ -26,8 +27,10 @@ def monitor_table(request):
     result = {'status': 'success', 'msg': '', 'data': []}
     latest_data = None
     try:
-        connection = pymysql.connect(
-            host='localhost', port=3306, user='root', password='1234567=', database='water monitor', charset='utf8mb4')
+        with open("./static/media/link.json", 'r', encoding='UTF-16')as f:
+            param = json.load(f)
+            connection = pymysql.connect(host=param['db']['host'], port=param['db']['port'], user=param['db']
+                            ['user'], passwd=param['db']['passwd'], db=param['db']['db'], charset='gbk')
         cursor = connection.cursor(pymysql.cursors.DictCursor)
         # SQL 查询该时间点的所有降雨数据
         sql = """
@@ -189,60 +192,80 @@ def save_rainfall_condition(request):
             file.write(condition)
         # 返回一个简单的响应确认保存成功
         return HttpResponse(f"File saved successfully at: {file_path}")
-
-
-# 閘門開度table
+    
+# 10/23 upgrade    
+# 閥門資料表
 @csrf_protect
 def valve_table(request):
-    result = {'status':'success', 'msg':'', 'data':[]}
+    result = {'status': 'success', 'msg': '', 'data': []}
     latest_data = None
     try:
-        connection = pymysql.connect(host='localhost', port=3306, user='root', password='1234567=', database='water monitor', charset='utf8mb4')
+        # 連接資料庫
+        with open("./static/media/link.json", 'r', encoding='UTF-16')as f:
+                param = json.load(f)
+                connection = pymysql.connect(host=param['db']['host'], port=param['db']['port'], user=param['db']
+                                         ['user'], passwd=param['db']['passwd'], db=param['db']['db'], charset='gbk')
         cursor = connection.cursor(pymysql.cursors.DictCursor)
-        sql = """SELECT * FROM `valve_table`
-         ORDER BY `valve_close_time` DESC """
+        
+        # 查詢最新的資料
+        sql = """SELECT * FROM `valve_table` ORDER BY `valve_close_time` DESC"""
         cursor.execute(sql)
         latest_data = cursor.fetchall()
 
-        # 遍历查询结果，修改时间格式
+        # 遍歷查詢結果，處理空值並修改時間格式
         for index, data in enumerate(latest_data):
-            if isinstance(latest_data[index]['valve_close_time'], str):
-                latest_data[index]['valve_close_time'] = datetime.strptime(latest_data[index]['valve_close_time'], '%Y-%m-%d %H:%M:%S')
-            if isinstance(latest_data[index]['current_time'], str):
-                latest_data[index]['current_time'] = datetime.strptime(latest_data[index]['current_time'], '%Y-%m-%d %H:%M:%S')
-            # 修改时间的显示格式
-            latest_data[index]['valve_close_time'] = latest_data[index]['valve_close_time'].strftime('%Y-%m-%d %H:%M:%S')
-            latest_data[index]['current_time'] = latest_data[index]['current_time'].strftime('%Y-%m-%d %H:%M:%S')
+            # 處理時間欄位的空值
+            if latest_data[index]['valve_close_time'] is None:
+                latest_data[index]['valve_close_time'] = 'null'
+            else:
+                # 將字符串轉換為時間格式，並格式化
+                if isinstance(latest_data[index]['valve_close_time'], str):
+                    latest_data[index]['valve_close_time'] = datetime.strptime(latest_data[index]['valve_close_time'], '%Y-%m-%d %H:%M:%S')
+                latest_data[index]['valve_close_time'] = latest_data[index]['valve_close_time'].strftime('%Y-%m-%d %H:%M:%S')
 
-       
+            # 處理 current_time 欄位的空值
+            if latest_data[index]['current_time'] is None:
+                latest_data[index]['current_time'] = 'null'
+            else:
+                if isinstance(latest_data[index]['current_time'], str):
+                    latest_data[index]['current_time'] = datetime.strptime(latest_data[index]['current_time'], '%Y-%m-%d %H:%M:%S')
+                latest_data[index]['current_time'] = latest_data[index]['current_time'].strftime('%Y-%m-%d %H:%M:%S')
+
+            # 檢查其他欄位是否為空，將空值替換為 'null'
+            for key in data:
+                if latest_data[index][key] is None:
+                    latest_data[index][key] = 'null'
+
+        # 檢查是否取得資料
         if latest_data:
             result['data'] = latest_data
-            result['msg'] = f'成功取得閘門資料'
-            print(result['msg'])
+            result['msg'] = '成功取得閘門資料'
         else:
             result['msg'] = '無法取得資料'
-            print(result['msg'])
-           
+
     except Exception as e:
         result['status'] = 'error'
-        error_class = e.__class__.__name__  # 获取错误类型
-        detail = e.args[0]  # 获取详细内容
-        cl, exc, tb = sys.exc_info()  # 获取Call Stack
-        lastCallStack = traceback.extract_tb(tb)[-1]  # 获取Call Stack的最后一条数据
-        fileName = lastCallStack.filename  # 获取发生的文件名称
-        lineNum = lastCallStack.lineno  # 获取发生的行号
-        funcName = lastCallStack.name  # 获取发生的函数名称
+        error_class = e.__class__.__name__
+        detail = e.args[0]
+        cl, exc, tb = sys.exc_info()
+        lastCallStack = traceback.extract_tb(tb)[-1]
+        fileName = lastCallStack.filename
+        lineNum = lastCallStack.lineno
+        funcName = lastCallStack.name
         errMsg = f"File \"{fileName}\", line {lineNum}, in {funcName}: [{error_class}] {detail}"
         result['msg'] = errMsg
 
     finally:
-        connection.close()
-    
-    context = {
-             'valve_data':result['data']
-        }
+        if connection:
+            connection.close()
 
-    response = render(request,'valve_table.html',context)
+    # 設定 context，並將資料傳遞到前端
+    context = {
+        'valve_data': result['data']
+    }
+
+    # 回傳帶有安全標頭的 response
+    response = render(request, 'valve_table.html', context)
     response['Strict-Transport-Security'] = 'max-age=2592000'
     response['X-Frame-Options'] = 'SAMEORIGIN'
     response['Referrer-Policy'] = 'no-referrer'
@@ -266,40 +289,90 @@ def monitor_sheet(request):
 	return response
 
 
+# 10/23 upgrade
 # 新增一筆閘門資料
 @csrf_exempt
 def monitor_sheet_insert(request):
-	result = {'status': 'success', 'msg': '', 'data': {}}
-	fields = ['valve_close_time', 'before_size', 'before_flow', 'after_size', 'after_flow', 'current_time']
-	sheet_data = request.POST.copy()  # 创建POST数据的副本
-	sheet_data['current_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-	try:
-		connection = pymysql.connect(
-			host='localhost', port=3306, user='root', password='1234567=', database='water monitor', charset='utf8mb4')
-		cursor = connection.cursor(pymysql.cursors.DictCursor)
-		# create SQL statement
-		
-		sql = f"INSERT INTO `monitor_sheet` ({', '.join([f'`{field}`' for field in fields])}) VALUES ({', '.join(['%s'] * len(fields))});"
-		values = [sheet_data[field] for field in fields]
-		
-		cursor.execute(sql, values)
-		connection.commit()
-		result['msg'] = '成功新增一筆資料'
+    result = {'status': 'success', 'msg': '', 'data': {}}
+    if request.method == 'POST':
+        fields = ['valve_close_time', 'before_size', 'before_flow', 'after_size', 'after_flow', 'current_time']
+        # 準備資料並確保 POST 中有所有需要的欄位
+        sheet_data = request.POST.copy()  # 複製 POST 資料
+        sheet_data['current_time'] = datetime.now().strftime('%Y-%m-%d %H:%M:%S')  # 添加 current_time
+        try:
+            # 建立資料庫連接
+            with open("./static/media/link.json", 'r', encoding='UTF-16')as f:
+                param = json.load(f)
+                connection = pymysql.connect(host=param['db']['host'], port=param['db']['port'], user=param['db']
+                                         ['user'], passwd=param['db']['passwd'], db=param['db']['db'], charset='gbk')
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
+            # 建立 SQL 語句
+            sql = f"INSERT INTO `valve_table` ({', '.join([f'`{field}`' for field in fields])}) VALUES ({', '.join(['%s'] * len(fields))});"
+            # 從 POST 資料中提取值
+            values = [sheet_data.get(field) for field in fields]
+            
+            # 執行 SQL 語句
+            cursor.execute(sql, values)
+            connection.commit()  # 提交變更
+            result['msg'] = '成功新增一筆資料'
 
-	except Exception as e:
-		result['status'] = '請確認必填欄位與其名稱是否重複'
-		error_class = e.__class__.__name__  # 取得錯誤類型
-		detail = e.args[0]  # 取得詳細內容
-		cl, exc, tb = sys.exc_info()  # 取得Call Stack
-		lastCallStack = traceback.extract_tb(tb)[-1]  # 取得Call Stack的最後一筆資料
-		fileName = lastCallStack.filename  # 取得發生的檔案名稱
-		lineNum = lastCallStack.lineno  # 取得發生的行號
-		funcName = lastCallStack.name  # 取得發生的函數名稱
-		errMsg = f"File \"{fileName}\", line {lineNum}, in {funcName}: [{error_class}] {detail}"
-		result['msg'] = errMsg
+        except Exception as e:
+            result['status'] = 'error'
+            result['msg'] = str(e)
 
-	return JsonResponse(result, safe=False)
+        finally:
+            cursor.close()
+            connection.close()
 
+        return JsonResponse(result)
+    
+    # 如果不是 POST 請求，返回錯誤
+    result['status'] = 'error'
+    result['msg'] = '請使用 POST 請求'
+    return JsonResponse(result)
+
+# 10/23 upgrade
+# 刪除閘門紀錄資料
+@csrf_exempt
+def delete_valve_record(request):
+    result = {'status': 'success', 'msg': ''}
+    
+    if request.method == 'POST':
+        try:
+            # 從 POST 請求中獲取資料 ID
+            record_id = request.POST.get('id')
+            # 連接資料庫
+            with open("./static/media/link.json", 'r', encoding='UTF-16')as f:
+                param = json.load(f)
+                connection = pymysql.connect(host=param['db']['host'], port=param['db']['port'], user=param['db']
+                                         ['user'], passwd=param['db']['passwd'], db=param['db']['db'], charset='gbk')
+            cursor = connection.cursor(pymysql.cursors.DictCursor)
+
+            # 刪除指定的記錄
+            sql = "DELETE FROM `valve_table` WHERE `valve_id` = %s"
+            cursor.execute(sql, (record_id,))
+            connection.commit()
+
+            # 判斷是否成功刪除
+            if cursor.rowcount > 0:
+                result['msg'] = f'成功刪除此筆資料'
+            else:
+                result['status'] = 'error'
+                result['msg'] = f'找不到此筆資料'
+
+        except Exception as e:
+            result['status'] = 'error'
+            result['msg'] = str(e)
+
+        finally:
+            if connection:
+                connection.close()
+
+    else:
+        result['status'] = 'error'
+        result['msg'] = '僅支持 POST 請求'
+
+    return JsonResponse(result)
 
 
 # 變更line group

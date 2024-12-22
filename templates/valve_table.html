@@ -73,6 +73,7 @@
                     <th>閘門關閉後開度</th>
                     <th>閘門關閉後瞬時流量</th>
                     <th>時間戳記</th>
+                    <th>操作</th>
                 </tr>
             </thead>
             <tbody>
@@ -84,6 +85,9 @@
                     <td>{{ entry.after_size }}</td>
                     <td>{{ entry.after_flow }}</td>
                     <td>{{ entry.current_time }}</td>
+                    <td>
+                        <button class="btn btn-danger" onclick="deleteRecord({{ entry.valve_id }})">刪除</button>
+                    </td>
                 </tr>
                 {% endfor %}
             </tbody>

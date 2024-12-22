@@ -18,5 +18,6 @@ urlpatterns = [
     path('valve_table/', valve_table),
     path('notify_line/', notify_line),
     path('save_line_api/', save_line_api),
+    path('delete_valve_record/', delete_valve_record),
 
 ]

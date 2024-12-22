@@ -16,7 +16,7 @@ connection = pymysql.connect(
     host='localhost',
     user='root',
     password='1234567=',  # 改为您的密码
-    database='water monitor',  # 改为您的数据库名称
+    database='water_monitor',  # 改为您的数据库名称
     charset='utf8mb4',
     cursorclass=pymysql.cursors.DictCursor
 )

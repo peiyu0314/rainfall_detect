@@ -119,7 +119,7 @@ function isFloat(value) {
 }
 
 
-
+// 10/23 upgrade
 // 閘門開度表單
 function monitor_sheet_insert() {
 
@@ -130,14 +130,12 @@ function monitor_sheet_insert() {
     
     // 创建请求数据对象
     var formData = {
-        'data_time': data_time,
-        'open_size': document.getElementById('open_size').value,
-        'open_flow': document.getElementById('open_flow').value,
-        'close_size': document.getElementById('close_size').value,
-        'close_flow': document.getElementById('close_flow').value,
+        'valve_close_time': data_time,
+        'before_size': document.getElementById('open_size').value,
+        'before_flow': document.getElementById('open_flow').value,
+        'after_size': document.getElementById('close_size').value,
+        'after_flow': document.getElementById('close_flow').value,
     };
-
-    console.log(formData); // For debugging
 
     $.ajax({
         url: "/monitor_sheet_insert/",
@@ -151,8 +149,32 @@ function monitor_sheet_insert() {
         },
         error: function (xhr, status, error) {
             alert("AJAX Error: " + error);
-            console.error(xhr, status, error); // For debugging
         }
     });
+}
+
+// 10/23 upgrade 
+// delete record
+function deleteRecord(id) {
+    if (confirm('確定要刪除此筆資料嗎？')) {
+        $.ajax({
+            url: '/delete_valve_record/',  // 後端處理刪除的 API
+            type: 'POST',  // 使用 POST 方法
+            data: { 'id': id },  // 傳遞要刪除的資料 ID
+            success: function(data) {
+                if (data.status === 'success') {
+                    alert(data.msg);
+                    // 刪除成功後重新載入頁面
+                    location.reload();
+                } else {
+                    alert(`Error: ${data.msg}`);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('Error:', error);
+                alert('發生錯誤，無法刪除資料');
+            }
+        });
+    }
 }
 
