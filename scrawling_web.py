@@ -1,91 +1,184 @@
 import schedule
 import time
 import pandas as pd
-from bs4 import BeautifulSoup
 from datetime import datetime
 import pymysql
 import requests
 import os
 
-# cd /Users/dengpeiyu/Desktop/上水汙水處理/rainfall_dect
-# python scrawling_web.py
-
-
-# LINE Notify API
-# line_notify_token = 'W4gi0jiVLlXxZl1uy2qBKNyAYgkAHqqk1ZvJXLmuJyU' #個人權杖
-# line_notify_token = 'NqYtH8qCmXuA6bH7d9hBQgRUTUL3q4bylrol7rEBjhJ' #測試群組
-
-
-#文件儲存的相對路徑
+# =========================
+# 文件路徑設置
+# =========================
 current_dir = os.path.dirname(os.path.abspath(__file__))
-file_path_station = os.path.join(current_dir, 'static/media', 'stations.txt')
-file_path_condition = os.path.join(current_dir, 'static/media', 'condition.txt')
-file_path_lineapi = os.path.join(current_dir, 'static/media', 'APIkey.txt')
+file_path_station = os.path.join(current_dir, 'static/media', 'stations.txt')  # 測站清單檔案
+file_path_condition = os.path.join(current_dir, 'static/media', 'condition.txt')  # 雨量條件檔案
+
+channel_token = "7gY9iU31u3OPNN1UITXYx+zIceIwb2eF+edEb/U0/+vnIgbg7a4xG7g7HAWoNELHeDdlo3pcXWvSKidwT8oDMv+id+p3elkJLUao772waCj6ACQqOXkbrfXt9Gr2o6pgWUUEjAmTBHUvcJ7fzoQuVQdB04t89/1O/w1cDnyilFU="
+channel_ID = "C81be0403511b941021a10f89f207a880"
+enginer_ID = "Cbe41ce7912b29f6f1648949ac03273a8"
 
 
-
-
-# 1. line notify request
-def line_notify_message(token, message):
+# =========================
+# 1. 發送 LINE Notify 訊息
+# =========================
+def line_message_api(channel_access_token, to, message):
+    """
+    使用 LINE Messaging API 發送訊息
+    :param channel_access_token: LINE Messaging API 的 Channel Access Token
+    :param to: 接收者的 User ID 或群組 ID
+    :param message: 要發送的訊息內容
+    :return: API 回應的狀態碼
+    """
+    url = "https://api.line.me/v2/bot/message/push"
     headers = {
-        "Authorization": "Bearer " + token,
-        "Content-Type": "application/x-www-form-urlencoded"
+        "Authorization": "Bearer " + channel_access_token,
+        "Content-Type": "application/json"
     }
-    payload = {'message': message}
-    r = requests.post("https://notify-api.line.me/api/notify", headers=headers, params=payload)
-    return r.status_code
+    payload = {
+        "to": to,
+        "messages": [
+            {
+                "type": "text",
+                "text": message
+            }
+        ]
+    }
+    response = requests.post(url, headers=headers, json=payload)
+    return response.status_code, response.json()
 
-# 2. read txt file
+# =========================
+# 2. 讀取文字檔案內容
+# =========================
 def read_file(file_path):
+    """
+    讀取指定路徑的文字檔案
+    :param file_path: 檔案的路徑
+    :return: 檔案內容（若不存在返回 None）
+    """
     if os.path.exists(file_path):
         with open(file_path, 'r') as file:
-            content = file.read()
-        return content
+            return file.read().strip()
     return None
 
-# 3. notify messages
-def line_notify_if_needed(stations_to_check, df, rainfall_condition):
-    # 宣告空陣列
-    record_station = []
-    rainfall_info = []  # 用於存儲測站及其降雨量
-    #read api
-    line_notify_token = read_file(file_path_lineapi)
+# =========================
+# 3. 插入通知記錄至 log_table
+# =========================
+def insert_notify_logs_bulk(connection, notify_log_entries):
+    """
+    批量插入通知日志
+    :param connection: 数据库连接对象
+    :param notify_log_entries: 日志条目列表，每个条目是一个元组
+    """
+    with connection.cursor() as cursor:
+        sql_insert_logs = """
+        INSERT INTO log_table (station_name, notify_time, rainfall_condition, rainfall_10min, status, error_msg)
+        VALUES (%s, %s, %s, %s, %s, %s)
+        """
+        cursor.executemany(sql_insert_logs, notify_log_entries)
+    connection.commit()
 
+
+# =========================
+# 4. 判斷是否發送 LINE 通知
+# =========================
+def line_notify_if_needed(stations_to_check, df, rainfall_condition, connection):
+    # 初始化记录
+    rainfall_info = []  # 达标测站的通知内容
+    log_info = []  # 错误或未达标的测站记录
+    notify_log_entries = []  # 用于存储日志条目
     for station in stations_to_check:
-        station_rainfall = df[df['測站名稱'].str.contains(station, regex=False)]
-        if not station_rainfall.empty:
-            rainfall = station_rainfall.iloc[0]['10分鐘']
-            if rainfall is not None:
-                try:
-                    if float(rainfall) >= float(rainfall_condition):
-                        # 將達標測站存成陣列
-                        record_station.append(station)
-                        # 將測站及其降雨量存入 rainfall_info
-                        rainfall_info.append(f"{station}測站降雨量達{rainfall}毫米")
-                except ValueError:
-                    print(f"{station}測站的降雨量數據無效")
-            else:
-                message = f"{station}測站無降雨"
-                print(message)
+        try:
+            # 检查测站数据是否存在
+            station_data = df[df['測站名稱'].str.contains(station, regex=False)]
+            notify_time = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    # 只有在有符合条件的站点时
+            if station_data.empty:
+                log_message = f"{station} 測站資料不存在"
+                log_info.append(log_message)
+                notify_log_entries.append((station, notify_time, rainfall_condition, None, 0, log_message))
+                continue
+
+            # 提取雨量数据
+            rainfall = station_data.iloc[0]['10分鐘']
+
+            # 判断雨量是否达标
+            if float(rainfall) >= float(rainfall_condition):
+                message = f"{station}測站降雨量達 {rainfall} 毫米"
+                rainfall_info.append(message)
+                notify_log_entries.append((station, notify_time, rainfall_condition, float(rainfall), 1, message))
+
+        except (ValueError, TypeError) as e:
+            error_message = f"{station} 測站數據異常，錯誤訊息: {str(e)}"
+            log_info.append(error_message)
+            notify_log_entries.append((station, datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                                        rainfall_condition, None, 0, error_message))
+
+    # 批量插入日志
+    insert_notify_logs_bulk(connection, notify_log_entries)
+
+    # 发送通知
     if rainfall_info:
-        # 將所有符合條件的測站及降雨量拼接成一個字串
-        stations_list = "\n".join(rainfall_info)
-        message = f"\n{stations_list}\n－－－－－－－－－－－－－－－－－－－\n請確認閘門開度是否需要調整。\n\
+        send_success_notification(channel_token, rainfall_info)
+    if log_info:
+        send_error_notification(channel_token, log_info)
+
+
+# sucess notify
+def send_success_notification(token, messages):
+    """
+    發送成功通知
+    :param token: LINE Notify Token
+    :param messages: 達標測站訊息
+    """
+    message = "\n".join(messages)
+    detailed_message = f"{message}\n－－－－－－－－－－－－－－－－－－－\n請確認閘門開度是否需要調整。\n\
 1. 隨時注意進流水量變化及進流抽水站、調整池水位，視雨量大小控制進流閘門適時調整處理水量。\n\
 2. 當雨天（梅雨、颱風、豪大雨）進流水量高於300m³/hr以上時，將逐步調整閘門開度，以確保設備運轉正常。\n\
 3. 必要時，得關閉進流閘門，以保護進流抽水站設備。"
-        # 發送 Line Notify 訊息
-        line_notify_message(line_notify_token, message)
-        record_notified_station(record_station)
-    else:
-        # 如果沒有符合條件的測站，發送一則無測站達標的通知
-        record_notified_station("無")
+    line_message_api(token, channel_ID, detailed_message)
+    print("達標通知已發送")
+
+# error notify
+def send_error_notification(token, errors):
+    """
+    發送錯誤通知
+    :param token: LINE Notify Token
+    :param errors: 錯誤或未達標訊息（列表）
+    """
+    message = "工程團隊通知：\n" + "\n".join(errors)
+    line_message_api(token, enginer_ID, message)
+    print("錯誤通知已發送")
 
 
 
-# 4. 存檔案
+# =========================
+# 5. 將數據插入 rainfall_web 表
+# =========================
+def insert_data_to_db(df, connection):
+    """
+    將測站數據插入 rainfall_web 表
+    :param df: 爬取的測站數據 DataFrame
+    :param connection: MySQL 連接對象
+    """
+    with connection.cursor() as cursor:
+        sql_insert = """
+        INSERT INTO `rainfall_web` 
+        (`station_name`, `region_name`, `rainfall_10min`, `rainfall_1hr`, `rainfall_3hr`,
+        `rainfall_6hr`, `rainfall_12hr`, `rainfall_24hr`, `rainfall_2days`, `data_time`, `current_time`)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        data_to_insert = [
+            (row['測站名稱'], row['行政區'], row['10分鐘'], row['1小時'], row['3小時'], row['6小時'],
+             row['12小時'], row['24小時'], row['2天前'], row['資料時間'], row['當前時間'])
+            for index, row in df.iterrows()
+        ]
+        cursor.executemany(sql_insert, data_to_insert)
+
+
+
+# =========================
+# 6. 存檔案
+# =========================
 def record_notified_station(record_station):
     # 直接将列表转换为以逗号分隔的字符串
     txt_content = ",".join(record_station)
@@ -96,31 +189,14 @@ def record_notified_station(record_station):
     with open(file_path, 'w') as file:
         file.write(txt_content)
 
-
-# 5. insert db
-def insert_data_to_db(df, connection):
-    with connection.cursor() as cursor:
-        # 插入数据
-        sql_insert = """
-        INSERT INTO `rainfall_web` 
-        (`station_name`, `region_name`, `rainfall_10min`, `rainfall_1hr`, `rainfall_3hr`,
-        `rainfall_6hr`, `rainfall_12hr`, `rainfall_24hr`, `rainfall_2days`, `data_time`, `current_time`)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        data_to_insert = [
-            (row['測站名稱'], row['行政區'], row['10分鐘'], row['1小時'], row['3小時'], row['6小時'], 
-             row['12小時'], row['24小時'], row['2天前'], row['資料時間'], row['當前時間']) 
-            for index, row in df.iterrows()
-        ]
-        cursor.executemany(sql_insert, data_to_insert)
-
-
-
-# 6. main function
+# =========================
+# 7. 主函式：抓取數據、檢查與通知
+# =========================
 def fetch_and_store_data():
-    
+    """
+    從氣象局 API 抓取數據，檢查降雨量，發送通知，並存儲數據到資料庫
+    """
     api_url = "https://opendata.cwa.gov.tw/api/v1/rest/datastore/O-A0002-001?Authorization=rdec-key-123-45678-011121314"
-
     # 读取測站
     stations_to_check = read_file(file_path_station)
     if stations_to_check:
@@ -131,73 +207,67 @@ def fetch_and_store_data():
     rainfall_condition = read_file(file_path_condition)
 
     try:
-        # 发起 GET 请求并处理超时
+        # 發送 API 請求
         response = requests.get(api_url, timeout=10)
         response.raise_for_status()
-
-        # 处理数据
+        #處理數據
         data = response.json()
         records = data.get('records', {}).get('Station', [])
-        extracted_data = []
-
-        for location in records:
-            if location.get('GeoInfo', {}).get('CountyName', '') == "新竹縣":
-                extracted_data.append({
-                    '測站名稱': location.get('StationName', 'N/A'),
-                    '行政區': location.get('GeoInfo', {}).get('TownName', 'N/A'),
-                    '10分鐘': location.get('RainfallElement', {}).get('Past10Min', {}).get('Precipitation', '0'),
-                    '1小時': location.get('RainfallElement', {}).get('Past1hr', {}).get('Precipitation', '0'),
-                    '3小時': location.get('RainfallElement', {}).get('Past3hr', {}).get('Precipitation', '0'),
-                    '6小時': location.get('RainfallElement', {}).get('Past6hr', {}).get('Precipitation', '0'),
-                    '12小時': location.get('RainfallElement', {}).get('Past12hr', {}).get('Precipitation', '0'),
-                    '24小時': location.get('RainfallElement', {}).get('Past24hr', {}).get('Precipitation', '0'),
-                    '2天前': location.get('RainfallElement', {}).get('Past2days', {}).get('Precipitation', '0'),
-                    '資料時間': location.get('ObsTime', {}).get('DateTime', 'N/A'),
+        extracted_data = [
+            {
+                    '測站名稱': loc.get('StationName', 'N/A'),
+                    '行政區': loc.get('GeoInfo', {}).get('TownName', 'N/A'),
+                    '10分鐘': loc.get('RainfallElement', {}).get('Past10Min', {}).get('Precipitation', '0'),
+                    '1小時': loc.get('RainfallElement', {}).get('Past1hr', {}).get('Precipitation', '0'),
+                    '3小時': loc.get('RainfallElement', {}).get('Past3hr', {}).get('Precipitation', '0'),
+                    '6小時': loc.get('RainfallElement', {}).get('Past6hr', {}).get('Precipitation', '0'),
+                    '12小時': loc.get('RainfallElement', {}).get('Past12hr', {}).get('Precipitation', '0'),
+                    '24小時': loc.get('RainfallElement', {}).get('Past24hr', {}).get('Precipitation', '0'),
+                    '2天前': loc.get('RainfallElement', {}).get('Past2days', {}).get('Precipitation', '0'),
+                    '資料時間': loc.get('ObsTime', {}).get('DateTime', 'N/A'),
                     '當前時間': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                })
+            }
+            for loc in records if loc.get('GeoInfo', {}).get('CountyName', '') == "新竹縣"
+        ]
 
-        # 创建 DataFrame
+        # 創建 DataFrame
         if extracted_data:
-            df = pd.DataFrame(extracted_data)
-            df = df.replace('-', None)  # 清理和格式化数据
-        
-        print(df['資料時間'][0])
-        print(df['當前時間'][0])
-        
-        # 连接MySQL
-        connection = pymysql.connect(
-            host='localhost',
-            user='root',
-            password='1234567=',
-            database='water monitor',
-            charset='utf8mb4',
-            cursorclass=pymysql.cursors.DictCursor
-        )
+            df = pd.DataFrame(extracted_data).replace('-', None)
+            connection = pymysql.connect(
+                host='localhost', user='root', password='1234567=',
+                database='water_monitor', charset='utf8mb4',
+                cursorclass=pymysql.cursors.DictCursor
+            )
 
-        # 检查降雨量并发送通知
-        line_notify_if_needed(stations_to_check, df, rainfall_condition)
+            # 檢查降雨量並發送通知
+            line_notify_if_needed(stations_to_check, df, rainfall_condition, connection)
 
-        # 插入数据到数据库
-        insert_data_to_db(df, connection)
+            # 插入數據到資料庫
+            insert_data_to_db(df, connection)
 
-        connection.commit()
-
-    except requests.RequestException as e:
-        print(f"Request error: {e}")
-    except pymysql.MySQLError as e:
-        print(f"MySQL error: {e}")
-    except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-    finally:
-        if connection:
+            connection.commit()
             connection.close()
 
+    except requests.RequestException as e:
+        messsage = f"Request error: {e}"
+        send_error_notification(channel_token,[messsage])
+       
+    except pymysql.MySQLError as e:
+        messsage = f"MySQL error: {e}"
+        send_error_notification(channel_token,[messsage])
 
+    except Exception as e:
+        messsage = f"An unexpected error occurred: {e}"
+        send_error_notification(channel_token,[messsage])
 
-# 使用 schedule 每10分钟一次
+# =========================
+# 8. 設置定時任務
+# =========================
 schedule.every(10).minutes.do(fetch_and_store_data)
 
-# 持续运行
+# =========================
+# 9. 持續運行
+# =========================
 while True:
     schedule.run_pending()
     time.sleep(1)
